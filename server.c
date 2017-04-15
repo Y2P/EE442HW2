@@ -20,6 +20,8 @@
 #define SEMCTSEMPTY	"/semcts_empty"
 
 
+pthread_mutex_t writelock;
+pthread_mutex_t writelock2;
 
 struct server_message 
 {
@@ -56,8 +58,8 @@ sem_t *CTS_sem_empty;
 
 pid_t  pid;
 struct SharedMem *SM;
-
-
+int status=0;
+int x = 0;
 
 
 void  INThandler(int sig)
@@ -65,8 +67,10 @@ void  INThandler(int sig)
 	   //  free(SM->STC_Q);
    //free(SM->CTS_Q);
    // Unmap the object
-   printf("Do you have to go .... \n");
-   printf("See ya!!! \n");
+   
+   //printf("Do you have to go .... \n");
+   //printf("See ya!!! \n");
+
    munmap(SM,sizeof(struct SharedMem) );
    sem_unlink(SEMSTCFULL);
    sem_unlink(SEMCTSFULL);
@@ -76,11 +80,35 @@ void  INThandler(int sig)
    close(fd);
    // Remove the shared memory object
    shm_unlink("/shared");
+  	if(x == 0)
+	{// Print the modification time in proper format
+	char buffer[7];
+	time_t raw;
+	struct tm * timeinfo;
+	time(&raw);
+	timeinfo = localtime(&raw);
+	strftime(buffer,30,"%a %b %d %X %Y",timeinfo );
+	printf("Server program closed at %s \n", buffer);
+	}
+	x++;
+
    exit(0);
+
 }
 
 int main(int argc, char const *argv[])
 {
+
+
+	// Print the modification time in proper format
+	char buffer[30];
+	time_t raw;
+	struct tm * timeinfo;
+	time(&raw);
+	timeinfo = localtime(&raw);
+	strftime(buffer,30,"%a %b %d %X %Y",timeinfo );
+	printf("Server program started at %s \n", buffer);
+
 	if(argc > 2)
 	{
 		SharedMemSize = atoi(argv[2]);
@@ -118,27 +146,53 @@ int main(int argc, char const *argv[])
 	SM->NumOfQueueElem = SharedMemSize;
 	
 	SM->STCFront = 0;
-	SM->STCRear = 10;
+	SM->STCRear = 0;
 	SM->CTSFront = 0;
 	SM->CTSRear = 0;
-	SM->CTS_Q[9].client_id =5 ;
-	SM->CTS_Q[19].client_id =5 ;
+
 
    	printf("CTRL-C to quit\n");
 	signal(SIGINT, INThandler);
+	
 	while(1)
 	{
 		if(	sem_wait(CTS_sem_empty) == 0)
 		{
-			fork();
-			pid = getpid();
-			if(pid == -1)
-				waitforpid();
+			if(fork() != 0)
+				waitpid(-1,&status,0);
+			else
+			{
+			pthread_mutex_lock(&writelock);
 
+				pthread_t i = pthread_self();
+
+				int passclientid = SM->CTS_Q[SM->CTSRear].client_id;
+				SM->CTS_Q[SM->CTSRear].client_id = 0;
+				int passquestion = SM->CTS_Q[SM->CTSRear].question;
+				SM->CTS_Q[SM->CTSRear].question = 0;
+
+				SM->CTSRear++;
+				SM->CTSRear = SM->CTSRear % SM->NumOfQueueElem;
+				sem_post(CTS_sem_full);
+			pthread_mutex_unlock(&writelock);
+			usleep(1000*(rand()%1000));
+
+			pthread_mutex_lock(&writelock2);
+				sem_wait(STC_sem_full);
+
+				SM->STC_Q[SM->STCFront].client_id = passclientid;
+				SM->STC_Q[SM->STCFront].server_id =getpid();
+				SM->STC_Q[SM->STCFront].answer = 2*passquestion;
+				SM->STCFront++;
+				SM->STCFront = SM->STCFront % SM->NumOfQueueElem;
+				sem_post(STC_sem_empty);
+			pthread_mutex_unlock(&writelock2);
+			
+			}
 		}
+
 	}
-
-
+	
 
    return 0;
 }

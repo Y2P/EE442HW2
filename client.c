@@ -56,6 +56,7 @@ void* sender(void* SM)
 {
 
 	CTS_sem_full = sem_open(SEMCTSFULL,0);
+	CTS_sem_empty = sem_open(SEMCTSEMPTY,0);
 	sem_wait(CTS_sem_full);
 	sem_post(CTS_sem_empty);
 	struct client_message m;
@@ -77,14 +78,16 @@ void* sender(void* SM)
 void* reciever(void* SM)
 {	
 	STC_sem_empty = sem_open(SEMSTCEMPTY,0);
+	STC_sem_full = sem_open(SEMSTCFULL,0);
+
 	sem_wait(STC_sem_empty);
-	sem_wait(STC_sem_full);
+	sem_post(STC_sem_full);
 	struct SharedMem* s;
 	
 	pthread_mutex_lock(&writelock2);
 		pthread_t i = pthread_self();
-
 		s = ((struct SharedMem*)SM);
+		printf("From server process %d to client thread %d - Result: %d\n",(int)s->STC_Q[s->STCRear].server_id,(int)i,(int)s->STC_Q[s->STCRear].answer);
 		s->STC_Q[s->STCRear].client_id =0;
 		s->STC_Q[s->STCRear].server_id =0;
 		s->STC_Q[s->STCRear].answer =0;
@@ -101,6 +104,13 @@ void* b;
 int i= 0;
 int main(int argc, char const *argv[])
 {
+	char buffer[30];
+	time_t raw;
+	struct tm * timeinfo;
+	time(&raw);
+	timeinfo = localtime(&raw);
+	strftime(buffer,30,"%a %b %d %X %Y",timeinfo );
+	printf("Client program started at %s \n", buffer);
 	if(argc > 2)
 	{
 		ThreadNum = atoi(argv[2]);
@@ -112,12 +122,8 @@ int main(int argc, char const *argv[])
 // Shared Memory is read
 	takesize = mmap((void *)0x20000000,sizeof(int),PROT_READ|PROT_WRITE,MAP_FIXED|MAP_SHARED,fd,0); 
 // Reciever and sender threads are created.
-	printf("Qsize : %d\n",*(int*)takesize );
 	int Qsize=*(int*)takesize;
 	int RegionSize = 3*sizeof(int) + Qsize*sizeof(struct server_message) + 2*sizeof(int) +Qsize*sizeof(struct client_message);
-
-	printf("%d\n",RegionSize );
-
 
 	fd = shm_open("/shared",O_RDWR,0600);
 	b = (void*)mmap((void *)0x20000000,RegionSize,PROT_READ|PROT_WRITE,MAP_FIXED|MAP_SHARED,fd,0);
@@ -134,9 +140,13 @@ int main(int argc, char const *argv[])
 	}
 
 // Release the allocated memories
-	sleep(10);
+	sleep(ThreadNum);
 	munmap(SM,RegionSize);
 
 	close(fd);
+	time(&raw);
+	timeinfo = localtime(&raw);
+	strftime(buffer,30,"%a %b %d %X %Y",timeinfo );
+	printf("Client program closed at %s \n", buffer);
 	return 0;
 }
