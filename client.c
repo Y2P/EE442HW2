@@ -57,6 +57,7 @@ void* sender(void* SM)
 
 	CTS_sem_full = sem_open(SEMCTSFULL,0);
 	sem_wait(CTS_sem_full);
+	sem_post(CTS_sem_empty);
 	struct client_message m;
 	struct SharedMem* s;
 
@@ -64,15 +65,12 @@ void* sender(void* SM)
 	pthread_mutex_lock(&writelock1);
 
 		s = ((struct SharedMem*)SM);
-		printf("%d\n",s-> NumOfQueueElem);
 		pthread_t i = pthread_self();
 		m.client_id = i;
 		m.question = rand()%1000;
-		printf("client_id:%d question: %d\n", (int)m.client_id,(int)m.question);
 		s->CTS_Q[s->CTSFront] = m;
 		(++s->CTSFront);
 		s->CTSFront = (s->CTSFront)%(s-> NumOfQueueElem);
-		printf("Sender: %d \n",s->CTSFront);
 
 	pthread_mutex_unlock(&writelock1);
 }
@@ -80,17 +78,18 @@ void* reciever(void* SM)
 {	
 	STC_sem_empty = sem_open(SEMSTCEMPTY,0);
 	sem_wait(STC_sem_empty);
-	struct server_message m;
+	sem_wait(STC_sem_full);
 	struct SharedMem* s;
 	
 	pthread_mutex_lock(&writelock2);
 		pthread_t i = pthread_self();
 
 		s = ((struct SharedMem*)SM);
-
-		s->STC_Q[s->STCFront] = m;
-		s->STCFront--;
-		printf("Sender: %d \n",(int)i);
+		s->STC_Q[s->STCRear].client_id =0;
+		s->STC_Q[s->STCRear].server_id =0;
+		s->STC_Q[s->STCRear].answer =0;
+		s->STCRear++;
+		s->STCRear = s->STCRear % s->NumOfQueueElem;
 
 	pthread_mutex_unlock(&writelock2);
 }
@@ -124,8 +123,7 @@ int main(int argc, char const *argv[])
 	b = (void*)mmap((void *)0x20000000,RegionSize,PROT_READ|PROT_WRITE,MAP_FIXED|MAP_SHARED,fd,0);
 
 	SM = ((struct SharedMem*)b );
-	printf("%d\n",(SM)-> NumOfQueueElem);
-	printf("%d\n",SM->CTS_Q[99].client_id);
+
 	
 	tid_sender= (pthread_t*)malloc(ThreadNum*sizeof(pthread_t));
 	tid_receiver= (pthread_t*)malloc(ThreadNum*sizeof(pthread_t));

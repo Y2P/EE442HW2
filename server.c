@@ -9,6 +9,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include  <signal.h>
+
 
 #define MAXSIZE 	10
 #define BASE        0x20000000
@@ -16,6 +18,8 @@
 #define SEMCTSFULL	"/semcts_full"
 #define SEMSTCEMPTY	"/semstc_empty"
 #define SEMCTSEMPTY	"/semcts_empty"
+
+
 
 struct server_message 
 {
@@ -40,7 +44,7 @@ struct SharedMem
 	struct client_message CTS_Q[MAXSIZE];
 };
 
-
+void INThandler(int);
 int SharedMemSize;
 int ret;
 int fd;
@@ -50,8 +54,31 @@ sem_t *STC_sem_empty;
 sem_t *CTS_sem_full; 
 sem_t *CTS_sem_empty; 
 
-void* s;
+pid_t  pid;
 struct SharedMem *SM;
+
+
+
+
+void  INThandler(int sig)
+{
+	   //  free(SM->STC_Q);
+   //free(SM->CTS_Q);
+   // Unmap the object
+   printf("Do you have to go .... \n");
+   printf("See ya!!! \n");
+   munmap(SM,sizeof(struct SharedMem) );
+   sem_unlink(SEMSTCFULL);
+   sem_unlink(SEMCTSFULL);
+   sem_unlink(SEMSTCEMPTY);
+   sem_unlink(SEMCTSEMPTY);
+   // Close the shared memory object handle
+   close(fd);
+   // Remove the shared memory object
+   shm_unlink("/shared");
+   exit(0);
+}
+
 int main(int argc, char const *argv[])
 {
 	if(argc > 2)
@@ -62,7 +89,6 @@ int main(int argc, char const *argv[])
 		SharedMemSize = 10;
 
 	int RegionSize = sizeof(int)*3  + SharedMemSize*sizeof(struct server_message) + sizeof(int)*2 +SharedMemSize*sizeof(struct client_message);
-	printf("%d\n",RegionSize );
 // Initialize the queue semaphores
 	STC_sem_full = sem_open(SEMSTCFULL,O_CREAT,0644,3);
 	STC_sem_empty = sem_open(SEMSTCEMPTY,O_CREAT,0644,3);
@@ -73,7 +99,7 @@ int main(int argc, char const *argv[])
 	sem_init(&(*CTS_sem_full),1,SharedMemSize);
 	sem_init(&(*STC_sem_full),1,SharedMemSize);
 	sem_init(&(*CTS_sem_empty),1,0);
-	sem_init(&(*STC_sem_empty),1,1);
+	sem_init(&(*STC_sem_empty),1,0);
 
 	fd = shm_open("/shared", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd == -1)
@@ -92,27 +118,27 @@ int main(int argc, char const *argv[])
 	SM->NumOfQueueElem = SharedMemSize;
 	
 	SM->STCFront = 0;
-	SM->STCRear = 0;
+	SM->STCRear = 10;
 	SM->CTSFront = 0;
 	SM->CTSRear = 0;
 	SM->CTS_Q[9].client_id =5 ;
 	SM->CTS_Q[19].client_id =5 ;
 
-   printf("Please press enter to finish the server operation\n");
-   getc(stdin);
+   	printf("CTRL-C to quit\n");
+	signal(SIGINT, INThandler);
+	while(1)
+	{
+		if(	sem_wait(CTS_sem_empty) == 0)
+		{
+			fork();
+			pid = getpid();
+			if(pid == -1)
+				waitforpid();
 
- //  free(SM->STC_Q);
-   //free(SM->CTS_Q);
-   // Unmap the object
-   munmap(SM,sizeof(struct SharedMem) );
-   sem_unlink(SEMSTCFULL);
-   sem_unlink(SEMCTSFULL);
-   sem_unlink(SEMSTCEMPTY);
-   sem_unlink(SEMCTSEMPTY);
-   // Close the shared memory object handle
-   close(fd);
-   // Remove the shared memory object
-   shm_unlink("/shared");
+		}
+	}
+
+
 
    return 0;
 }
