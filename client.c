@@ -12,7 +12,7 @@
 
 
 #define BASE        0x20000000
-#define MAXSIZE 	10
+#define MAXSIZE 	10000000
 #define SEMSTCFULL	"/semstc_full"
 #define SEMCTSFULL	"/semcts_full"
 #define SEMSTCEMPTY	"/semstc_empty"
@@ -135,6 +135,9 @@ pthread_t* tid_sender;
 pthread_t* tid_receiver;
 void* b;
 int i= 0;
+struct server_message* STC;
+struct client_message* CTS;
+
 int main(int argc, char const *argv[])
 {
 
@@ -160,7 +163,7 @@ int main(int argc, char const *argv[])
 	takesize = mmap((void *)0x20000000,sizeof(int),PROT_READ|PROT_WRITE,MAP_FIXED|MAP_SHARED,fd,0); 
 // Reciever and sender threads are created.
 	int Qsize=*(int*)takesize;
-	int RegionSize = 3*sizeof(int) + Qsize*sizeof(struct server_message) + 2*sizeof(int) +Qsize*sizeof(struct client_message);
+	int RegionSize = 3*sizeof(int) + MAXSIZE*sizeof(struct server_message) + 2*sizeof(int) +MAXSIZE*sizeof(struct client_message);
 
 	// Open the shared file
 	fd = shm_open("/shared",O_RDWR,0600);

@@ -12,7 +12,7 @@
 #include  <signal.h>
 
 
-#define MAXSIZE 	10
+#define MAXSIZE 	10000000
 #define BASE        0x20000000
 #define SEMSTCFULL	"/semstc_full"
 #define SEMCTSFULL	"/semcts_full"
@@ -126,7 +126,7 @@ int main(int argc, char const *argv[])
 		SharedMemSize = 10;
 
 	// Calculate the necessary memory size (in byte)
-	int RegionSize = sizeof(int)*3  + SharedMemSize*sizeof(struct server_message) + sizeof(int)*2 +SharedMemSize*sizeof(struct client_message);
+	int RegionSize = sizeof(int)*3  + MAXSIZE*sizeof(struct server_message) + sizeof(int)*2 +MAXSIZE*sizeof(struct client_message);
 	/*
 	Size
 	Front Index
